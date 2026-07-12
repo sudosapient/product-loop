@@ -1,0 +1,56 @@
+{
+  "subagents": {
+    "agentOverrides": {
+      "scout": {
+        "model": "llm-proxy/grok-4.5",
+        "thinking": "high",
+        "fallbackModels": [
+          "llm-proxy/gpt-5.6-sol"
+        ]
+      },
+      "researcher": {
+        "model": "llm-proxy/grok-4.5",
+        "thinking": "high",
+        "fallbackModels": [
+          "llm-proxy/gpt-5.6-sol"
+        ]
+      },
+      "planner": {
+        "model": "llm-proxy/gpt-5.6-sol",
+        "thinking": "high",
+        "fallbackModels": [
+          "llm-proxy/claude-opus-4-8"
+        ]
+      },
+      "context-builder": {
+        "model": "llm-proxy/gpt-5.6-sol",
+        "thinking": "high",
+        "fallbackModels": [
+          "llm-proxy/claude-opus-4-8"
+        ]
+      },
+      "worker": {
+        "model": "llm-proxy/grok-4.5",
+        "thinking": "high",
+        "fallbackModels": [
+          "llm-proxy/gpt-5.6-sol",
+          "llm-proxy/claude-opus-4-8"
+        ]
+      },
+      "reviewer": {
+        "model": "llm-proxy/claude-opus-4-8",
+        "thinking": "high",
+        "fallbackModels": [
+          "llm-proxy/gpt-5.6-sol"
+        ]
+      },
+      "oracle": {
+        "model": "llm-proxy/claude-opus-4-8",
+        "thinking": "high",
+        "fallbackModels": [
+          "llm-proxy/gpt-5.6-sol"
+        ]
+      }
+    }
+  }
+}

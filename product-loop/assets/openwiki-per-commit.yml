@@ -1,0 +1,167 @@
+name: OpenWiki Per-Commit Audit
+
+on:
+  workflow_dispatch:
+    inputs:
+      before_sha:
+        description: Exclusive full SHA before the first commit to process
+        required: true
+        type: string
+      after_sha:
+        description: Inclusive full SHA at the end of the range
+        required: true
+        type: string
+  push:
+    branches:
+      - main # Replace with the repository's actual default branch.
+
+# Intentionally no concurrency group: GitHub concurrency is not a FIFO queue.
+# Runs and matrix jobs may overlap or finish out of order; every enumerated SHA
+# receives its own read-only generation attempt and SHA-keyed artifact.
+permissions: {}
+
+jobs:
+  enumerate:
+    if: github.ref_type == 'branch' && (github.event_name == 'workflow_dispatch' || github.ref_name == github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    outputs:
+      commits: ${{ steps.range.outputs.commits }}
+    steps:
+      - name: Check out history without persisted credentials
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Enumerate every commit in the pushed range
+        id: range
+        shell: bash
+        env:
+          PUSH_BEFORE: ${{ github.event.before }}
+          PUSH_AFTER: ${{ github.sha }}
+          MANUAL_BEFORE: ${{ inputs.before_sha }}
+          MANUAL_AFTER: ${{ inputs.after_sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            before="$MANUAL_BEFORE"
+            after="$MANUAL_AFTER"
+          else
+            before="$PUSH_BEFORE"
+            after="$PUSH_AFTER"
+          fi
+
+          full_sha='^[0-9a-f]{40}$|^[0-9a-f]{64}$'
+          [[ "$before" =~ $full_sha ]]
+          [[ "$after" =~ $full_sha ]]
+          [[ "$before" != 0000000000000000000000000000000000000000 ]]
+          [[ "$before" != 0000000000000000000000000000000000000000000000000000000000000000 ]]
+          git cat-file -e "$before^{commit}"
+          git cat-file -e "$after^{commit}"
+
+          mapfile -t commits < <(git rev-list --topo-order --reverse "$before..$after")
+          count=${#commits[@]}
+          (( count > 0 ))
+          if (( count > 200 )); then
+            printf 'range contains %s commits; split it into manual ranges of at most 200\n' "$count" >&2
+            exit 1
+          fi
+
+          commits_json=$(node -e 'process.stdout.write(JSON.stringify(process.argv.slice(1)))' "${commits[@]}")
+          printf 'commits=%s\n' "$commits_json" >> "$GITHUB_OUTPUT"
+
+  generate-per-commit:
+    needs: enumerate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: openwiki
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        sha: ${{ fromJSON(needs.enumerate.outputs.commits) }}
+    steps:
+      - name: Check out the exact source commit without persisted credentials
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ matrix.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Assert exact immutable source
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ matrix.sha }}
+        run: test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: .github/openwiki-runner/package-lock.json
+
+      - name: Install locked OpenWiki runner
+        run: npm ci --prefix .github/openwiki-runner --ignore-scripts --no-audit --no-fund
+
+      - name: Build and smoke-test the vetted SQLite binding only
+        run: |
+          npm rebuild --prefix .github/openwiki-runner better-sqlite3 --no-audit --no-fund
+          node -e "const Database=require('./.github/openwiki-runner/node_modules/better-sqlite3'); const db=new Database(':memory:'); db.exec('SELECT 1'); db.close();"
+
+      - name: Generate and verify SHA-keyed documentation evidence
+        shell: bash
+        env:
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENWIKI_MODEL_ID: ${{ vars.OPENWIKI_MODEL_ID }}
+          SOURCE_SHA: ${{ matrix.sha }}
+        run: |
+          set -euo pipefail
+          test -n "${OPENROUTER_API_KEY:-}"
+          test -n "${OPENWIKI_MODEL_ID:-}"
+          .github/openwiki-runner/node_modules/.bin/openwiki code --update --print
+          SOURCE_SHA="$SOURCE_SHA" node <<'NODE'
+          const crypto = require('crypto');
+          const fs = require('fs');
+          const path = require('path');
+          const source = process.env.SOURCE_SHA;
+          const secret = Buffer.from(process.env.OPENROUTER_API_KEY || '');
+          if (!source || !secret.length) throw new Error('source SHA and provider secret are required');
+          const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+            const file = path.join(dir, entry.name);
+            if (entry.name === '.git') throw new Error(`Nested git metadata is forbidden: ${file}`);
+            if (entry.isDirectory()) return walk(file);
+            if (!entry.isFile()) throw new Error(`Unsafe generated entry: ${file}`);
+            return [file];
+          });
+          const files = walk('openwiki').sort();
+          if (!files.length) throw new Error('OpenWiki produced no files');
+          for (const file of files) {
+            if (fs.readFileSync(file).includes(secret)) throw new Error(`Provider secret appeared in generated output: ${file}`);
+          }
+          const update = 'openwiki/.last-update.json';
+          if (!fs.existsSync(update) || !fs.readFileSync(update, 'utf8').includes(source)) {
+            throw new Error('openwiki/.last-update.json does not identify the exact source SHA');
+          }
+          if (fs.existsSync('.openwiki-per-commit-evidence')) throw new Error('reserved evidence directory already exists in the source commit');
+          fs.mkdirSync('.openwiki-per-commit-evidence');
+          const hashes = Object.fromEntries(files.map((file) => [file, crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex')]));
+          fs.writeFileSync('.openwiki-per-commit-evidence/manifest.json', `${JSON.stringify({ source_sha: source, generated_at: new Date().toISOString(), hashes }, null, 2)}\n`);
+          NODE
+          test "$(du -sk openwiki | cut -f1)" -le 51200
+
+      - name: Upload immutable per-commit result
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: openwiki-per-commit-${{ matrix.sha }}
+          path: |
+            openwiki
+            .openwiki-per-commit-evidence
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 30

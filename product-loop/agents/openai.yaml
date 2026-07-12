@@ -1,0 +1,4 @@
+interface:
+  display_name: "Product Loop"
+  short_description: "Ship measurable products through verified agent loops"
+  default_prompt: "Use $product-loop to turn this PRD into a verified, working product. If autonomous execution is requested, complete preflight first, freeze the run contract, then continue without routine human pauses."

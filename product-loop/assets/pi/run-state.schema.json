@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Product Loop Run State",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "run_id",
+    "parent_run_id",
+    "execution_mode",
+    "lifecycle",
+    "contract",
+    "started_at",
+    "updated_at",
+    "global_budget",
+    "active_phase",
+    "candidates",
+    "children",
+    "selections",
+    "external_effects",
+    "last_verified_gate",
+    "failure",
+    "checkpoints",
+    "integration",
+    "observation",
+    "next_action",
+    "terminal"
+  ],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "run_id": { "type": "string" },
+    "parent_run_id": { "type": "string" },
+    "execution_mode": { "enum": ["autonomous", "supervised"] },
+    "lifecycle": {
+      "enum": ["PREFLIGHT", "NOT_READY", "READY", "RUNNING", "OBSERVING", "VALIDATED", "MISSED_TARGET", "BLOCKED"]
+    },
+    "contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "manifest_path", "commit", "paths", "verified_at"],
+      "properties": {
+        "version": { "type": "string" },
+        "manifest_path": { "type": "string", "minLength": 1 },
+        "commit": { "type": "string", "pattern": "^(?:$|[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "paths": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1 } },
+        "verified_at": { "type": "string" }
+      }
+    },
+    "started_at": { "type": "string" },
+    "updated_at": { "type": "string" },
+    "global_budget": { "$ref": "#/$defs/budget" },
+    "active_phase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "status", "contract_path", "contract_commit", "evidence_path", "started_at", "wall_clock_limit_seconds", "turn_limit", "elapsed_seconds", "turns_used"],
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "enum": ["", "PLANNED", "RUNNING", "VERIFIED", "BLOCKED"] },
+        "contract_path": { "type": "string" },
+        "contract_commit": { "type": "string", "pattern": "^(?:$|[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "evidence_path": { "type": "string" },
+        "started_at": { "type": "string" },
+        "wall_clock_limit_seconds": { "type": "integer", "minimum": 0 },
+        "turn_limit": { "type": "integer", "minimum": 0 },
+        "elapsed_seconds": { "type": "integer", "minimum": 0 },
+        "turns_used": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["phase_id", "id", "worktree", "branch", "base_sha", "head_sha", "owner", "producer_run_id", "requested_model", "final_model", "attempted_models", "status", "evidence"],
+        "properties": {
+          "phase_id": { "type": "string", "minLength": 1 },
+          "id": { "type": "string", "minLength": 1 },
+          "worktree": { "type": "string", "pattern": "^/" },
+          "branch": { "type": "string", "minLength": 1 },
+          "base_sha": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+          "head_sha": { "type": "string", "pattern": "^(?:$|[0-9a-f]{40}|[0-9a-f]{64})$" },
+          "owner": { "type": "string", "minLength": 1 },
+          "producer_run_id": { "type": "string" },
+          "requested_model": { "type": "string", "minLength": 1 },
+          "final_model": { "type": "string" },
+          "attempted_models": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "status": { "enum": ["PLANNED", "RUNNING", "COMPLETE", "VERIFIED", "FAILED", "REJECTED", "SELECTED", "INTEGRATED"] },
+          "evidence": { "type": "string" }
+        }
+      }
+    },
+    "children": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["phase_id", "run_id", "agent", "requested_model", "final_model", "attempted_models", "cwd", "status", "started_at", "completed_at", "artifact"],
+        "properties": {
+          "phase_id": { "type": "string", "minLength": 1 },
+          "run_id": { "type": "string", "minLength": 1 },
+          "agent": { "type": "string", "minLength": 1 },
+          "requested_model": { "type": "string", "minLength": 1 },
+          "final_model": { "type": "string" },
+          "attempted_models": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "cwd": { "type": "string", "pattern": "^/" },
+          "status": { "enum": ["QUEUED", "RUNNING", "NEEDS_ATTENTION", "PAUSED", "COMPLETE", "FAILED"] },
+          "started_at": { "type": "string" },
+          "completed_at": { "type": "string" },
+          "artifact": { "type": "string" }
+        }
+      }
+    },
+    "selections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["phase_id", "evaluator_run_id", "candidate_shas", "selected_sha", "input_manifest_sha", "evidence", "at"],
+        "properties": {
+          "phase_id": { "type": "string", "minLength": 1 },
+          "evaluator_run_id": { "type": "string", "minLength": 1 },
+          "candidate_shas": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" } },
+          "selected_sha": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+          "input_manifest_sha": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "evidence": { "type": "string", "minLength": 1 },
+          "at": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "external_effects": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "type", "target", "authority_source", "result", "rollback", "evidence", "at"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "type": { "type": "string", "minLength": 1 },
+          "target": { "type": "string", "minLength": 1 },
+          "authority_source": { "type": "string", "minLength": 1 },
+          "result": { "type": "string", "minLength": 1 },
+          "rollback": { "type": "string", "minLength": 1 },
+          "evidence": { "type": "string", "minLength": 1 },
+          "at": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "last_verified_gate": { "$ref": "#/$defs/gate" },
+    "failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["class", "count", "last_evidence"],
+      "properties": {
+        "class": { "type": "string" },
+        "count": { "type": "integer", "minimum": 0 },
+        "last_evidence": { "type": "string" }
+      }
+    },
+    "checkpoints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["at", "phase", "step", "integration_sha", "evidence", "next_action"],
+        "properties": {
+          "at": { "type": "string", "minLength": 1 },
+          "phase": { "type": "string", "minLength": 1 },
+          "step": { "type": "string", "minLength": 1 },
+          "integration_sha": { "type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$" },
+          "evidence": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+          "next_action": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "integration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["branch", "sha", "verified_at"],
+      "properties": {
+        "branch": { "type": "string" },
+        "sha": { "type": "string", "pattern": "^(?:$|[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "verified_at": { "type": "string" }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "window_ends_at", "next_check_at", "monitor_id", "release_evidence", "release_evidence_sha256", "measurements", "evidence"],
+      "properties": {
+        "status": { "enum": ["", "SCHEDULED", "RUNNING", "COMPLETE", "FAILED"] },
+        "window_ends_at": { "type": "string" },
+        "next_check_at": { "type": "string" },
+        "monitor_id": { "type": "string" },
+        "release_evidence": { "type": "string" },
+        "release_evidence_sha256": { "type": "string", "pattern": "^(?:$|[0-9a-f]{64})$" },
+        "measurements": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "kind", "formula", "comparator", "target", "actual", "passed", "window_ends_at", "source", "source_artifact", "source_sha256", "measured_at", "evidence"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "kind": { "enum": ["PRIMARY", "GUARDRAIL"] },
+              "formula": { "type": "string", "minLength": 1 },
+              "comparator": { "enum": ["EQ", "NE", "GT", "GTE", "LT", "LTE"] },
+              "target": { "type": "string", "minLength": 1 },
+              "actual": { "type": "string", "minLength": 1 },
+              "passed": { "type": "boolean" },
+              "window_ends_at": { "type": "string", "minLength": 1 },
+              "source": { "type": "string", "minLength": 1 },
+              "source_artifact": { "type": "string", "minLength": 1 },
+              "source_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+              "measured_at": { "type": "string", "minLength": 1 },
+              "evidence": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "next_action": { "type": "string" },
+    "terminal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "reason", "evidence"],
+      "properties": {
+        "state": { "enum": ["", "VALIDATED", "MISSED_TARGET", "BLOCKED"] },
+        "reason": { "type": "string" },
+        "evidence": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    }
+  },
+  "$defs": {
+    "budget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["wall_clock_limit_seconds", "turn_limit", "cost_limit_usd", "elapsed_seconds", "turns_used", "cost_used_usd", "consecutive_no_progress_limit", "consecutive_no_progress_count"],
+      "properties": {
+        "wall_clock_limit_seconds": { "type": "integer", "minimum": 0 },
+        "turn_limit": { "type": "integer", "minimum": 0 },
+        "cost_limit_usd": { "type": ["number", "null"], "minimum": 0 },
+        "elapsed_seconds": { "type": "integer", "minimum": 0 },
+        "turns_used": { "type": "integer", "minimum": 0 },
+        "cost_used_usd": { "type": "number", "minimum": 0 },
+        "consecutive_no_progress_limit": { "type": "integer", "minimum": 0 },
+        "consecutive_no_progress_count": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "tested_sha", "result", "evidence", "verified_at"],
+      "properties": {
+        "name": { "type": "string" },
+        "tested_sha": { "type": "string", "pattern": "^(?:$|[0-9a-f]{40}|[0-9a-f]{64})$" },
+        "result": { "enum": ["", "PASS", "FAIL", "BLOCKED"] },
+        "evidence": { "type": "string" },
+        "verified_at": { "type": "string" }
+      }
+    }
+  }
+}

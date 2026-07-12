@@ -1,0 +1,134 @@
+name: OpenWiki Update
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main # Replace with the repository's actual default branch.
+    paths-ignore:
+      - "openwiki/**"
+
+# Coalesce rapid pushes and document the latest accepted branch state.
+concurrency:
+  group: openwiki-latest-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  generate:
+    if: github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: openwiki
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source without persisted credentials
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: .github/openwiki-runner/package-lock.json
+
+      - name: Install locked OpenWiki runner
+        run: npm ci --prefix .github/openwiki-runner --ignore-scripts --no-audit --no-fund
+
+      - name: Build and smoke-test the vetted SQLite binding only
+        run: |
+          npm rebuild --prefix .github/openwiki-runner better-sqlite3 --no-audit --no-fund
+          node -e "const Database=require('./.github/openwiki-runner/node_modules/better-sqlite3'); const db=new Database(':memory:'); db.exec('SELECT 1'); db.close();"
+
+      - name: Generate docs and reject direct secret disclosure
+        shell: bash
+        env:
+          # Dedicated, budget-limited environment secret. Change provider/model together.
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          OPENWIKI_MODEL_ID: ${{ vars.OPENWIKI_MODEL_ID }}
+        run: |
+          set -euo pipefail
+          test -n "${OPENROUTER_API_KEY:-}"
+          test -n "${OPENWIKI_MODEL_ID:-}"
+          .github/openwiki-runner/node_modules/.bin/openwiki code --update --print
+          node <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const secret = process.env.OPENROUTER_API_KEY;
+          if (!secret) throw new Error('OPENROUTER_API_KEY is not configured');
+          const walk = (dir) => fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+            const file = path.join(dir, entry.name);
+            if (entry.name === '.git') throw new Error(`Nested git metadata is forbidden: ${file}`);
+            if (entry.isDirectory()) return walk(file);
+            if (!entry.isFile()) throw new Error(`Unsafe generated entry: ${file}`);
+            return [file];
+          });
+          for (const file of walk('openwiki')) {
+            if (fs.readFileSync(file).includes(Buffer.from(secret))) {
+              throw new Error(`Provider secret appeared in generated output: ${file}`);
+            }
+          }
+          NODE
+          test "$(du -sk openwiki | cut -f1)" -le 51200
+
+      - name: Transfer generated docs only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: openwiki-${{ github.sha }}
+          path: openwiki
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    if: github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch
+    needs: generate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out target without persisted credentials
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Prepare an exact docs target
+        run: rm -rf -- openwiki
+
+      - name: Download generated docs
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: openwiki-${{ github.sha }}
+          path: openwiki
+
+      - name: Reject unsafe artifact structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -z "$(find openwiki -type l -print -quit)"
+          test -z "$(find openwiki -name .git -print -quit)"
+
+      - name: Create or update reviewed documentation PR
+        uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7.0.11
+        with:
+          add-paths: openwiki
+          branch: docs/openwiki-update
+          delete-branch: true
+          commit-message: "docs: update OpenWiki"
+          title: "docs: update OpenWiki"
+          body: |
+            Automated OpenWiki update for the latest accepted default-branch state.
+
+            Source workflow SHA: `${{ github.sha }}`
+
+            Review source references and verify `openwiki/.last-update.json`
+            before merging. This PR is intentionally not auto-merged.

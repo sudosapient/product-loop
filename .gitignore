@@ -1,0 +1,13 @@
+node_modules/
+*.tgz
+.DS_Store
+.env
+.env.*
+.loop/
+.pi-subagents/
+.pi/
+
+# Local build/research journals are not part of the public package.
+findings.md
+progress.md
+task_plan.md

@@ -1,0 +1,9 @@
+{
+  "name": "openwiki-ci-runner",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Locked OpenWiki dependency graph for the Product Loop CI template.",
+  "dependencies": {
+    "openwiki": "0.1.0"
+  }
+}

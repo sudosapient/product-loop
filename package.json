@@ -1,0 +1,60 @@
+{
+  "name": "@sudosapient/product-loop",
+  "version": "1.1.0",
+  "description": "Portable Pi package for autonomous, evidence-driven product delivery from PRD to validated outcome.",
+  "license": "MIT",
+  "author": "Sudo Sapient <sabari@sudosapient.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sudosapient/product-loop.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sudosapient/product-loop/issues"
+  },
+  "homepage": "https://sudosapient.github.io/product-loop/",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "type": "module",
+  "bin": {
+    "product-loop": "bin/product-loop.mjs"
+  },
+  "files": [
+    "bin/",
+    "lib/",
+    "scripts/",
+    "docs/",
+    "product-loop/",
+    "README.md",
+    "LICENSE",
+    "SECURITY.md"
+  ],
+  "scripts": {
+    "test": "npm run test:package && npm run test:protocol",
+    "test:package": "node --test tests/*.test.mjs",
+    "test:protocol": "node product-loop/tests/validate_run_state.test.mjs",
+    "prepublishOnly": "npm test",
+    "pack:check": "npm pack --dry-run",
+    "demo": "node ./bin/product-loop.mjs dashboard --project . --no-open"
+  },
+  "pi": {
+    "skills": [
+      "./product-loop"
+    ],
+    "prompts": [
+      "./product-loop/assets/pi"
+    ]
+  },
+  "engines": {
+    "node": ">=22.19"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-coding-agent",
+    "product-delivery",
+    "subagents",
+    "worktrees",
+    "autonomous-agents"
+  ]
+}

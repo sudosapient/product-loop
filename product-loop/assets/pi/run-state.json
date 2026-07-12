@@ -1,0 +1,76 @@
+{
+  "schema_version": 2,
+  "run_id": "",
+  "parent_run_id": "",
+  "execution_mode": "autonomous",
+  "lifecycle": "PREFLIGHT",
+  "contract": {
+    "version": "",
+    "manifest_path": "product/run-contract.md",
+    "commit": "",
+    "paths": [],
+    "verified_at": ""
+  },
+  "started_at": "",
+  "updated_at": "",
+  "global_budget": {
+    "wall_clock_limit_seconds": 0,
+    "turn_limit": 0,
+    "cost_limit_usd": null,
+    "elapsed_seconds": 0,
+    "turns_used": 0,
+    "cost_used_usd": 0,
+    "consecutive_no_progress_limit": 0,
+    "consecutive_no_progress_count": 0
+  },
+  "active_phase": {
+    "id": "",
+    "status": "",
+    "contract_path": "",
+    "contract_commit": "",
+    "evidence_path": "",
+    "started_at": "",
+    "wall_clock_limit_seconds": 0,
+    "turn_limit": 0,
+    "elapsed_seconds": 0,
+    "turns_used": 0
+  },
+  "candidates": [],
+  "children": [],
+  "selections": [],
+  "external_effects": [],
+  "last_verified_gate": {
+    "name": "",
+    "tested_sha": "",
+    "result": "",
+    "evidence": "",
+    "verified_at": ""
+  },
+  "failure": {
+    "class": "",
+    "count": 0,
+    "last_evidence": ""
+  },
+  "checkpoints": [],
+  "integration": {
+    "branch": "",
+    "sha": "",
+    "verified_at": ""
+  },
+  "observation": {
+    "status": "",
+    "window_ends_at": "",
+    "next_check_at": "",
+    "monitor_id": "",
+    "release_evidence": "",
+    "release_evidence_sha256": "",
+    "measurements": [],
+    "evidence": []
+  },
+  "next_action": "complete preflight",
+  "terminal": {
+    "state": "",
+    "reason": "",
+    "evidence": []
+  }
+}

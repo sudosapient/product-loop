@@ -14,7 +14,7 @@ function projectFrom(parsed) { return safeProjectRoot(parsed.flags.project ?? pa
 
 function doctor(project) {
   const checks = [
-    ["Node 20+", Number(process.versions.node.split(".")[0]) >= 20, process.version],
+    ["Node 22.19+", (() => { const [major, minor] = process.versions.node.split(".").map(Number); return major > 22 || (major === 22 && minor >= 19); })(), process.version],
     ["Pi CLI", commandExists("pi"), executablePath("pi") ?? "not found"],
     ["Proxy config", existsSync(join(configRoot, "config.json")), join(configRoot, "config.json")],
     ["Pi models", existsSync(join(agentRoot, "models.json")), join(agentRoot, "models.json")],
